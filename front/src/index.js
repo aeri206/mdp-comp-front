@@ -12,7 +12,7 @@ ReactDOM.render(
   <React.StrictMode>
     {/* <CanvasTest /> */}
     <App
-      n={50}
+      n={100}
       width={matrixWidth}
       height={matrixWidth}
     />

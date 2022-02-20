@@ -10,31 +10,35 @@ const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 
 
 
-function drawBaseLine(ctx, n, width, height,cellWidth, cellHeight, idx){
+function drawBaseLine(ctx, n, cellWidth, cellHeight, idx){
   // draw canvas rectangle without filling
-  ctx.lineWidth = 0.1;
-  ctx.font = 'bold 12px sans-serif';
   
-
+  ctx.font = 'bold 12px sans-serif';
+  ctx.lineWidth = 0.1;
+  ctx.save();
+  
   for (let i = 1; i <= n; i++){
-    ctx.clearRect(i * cellWidth, 0, cellWidth, cellHeight);
     
     const colors = ['red', 'blue', 'green', 'orange']
     const file_idx = idx[i-1];
     // ctx.fillText(file_idx, i * cellWidth, cellHeight/2);
-    const weight_info = require(`./example/${file_idx}/metadata.json`).attr_weight
-    // console.log(i, file_idx, weight_info)
+    const weight_info = require(`./proj/${file_idx}/metadata.json`).attr_weight
+    ctx.clearRect(i * cellWidth, 0, cellWidth, weight_info.length * cellHeight);
+    
+    
     weight_info.forEach((v, idx) => {
+      ctx.globalAlpha = v;
       ctx.fillStyle = colors[idx]
-      let barLength = cellWidth * v;
-      let barHeight = cellHeight / weight_info.length;
-      ctx.fillRect(i * cellWidth, barHeight * idx, barLength, barHeight);
+      ctx.fillRect(i * cellWidth, cellHeight * idx, cellWidth, cellHeight);
     })
+    ctx.globalAlpha = 1.0;
 
     // ctx.fillStyle = 'black';
-    
-    // ctx.strokeRect(0, i * cellHeight, cellWidth, cellHeight);
   }
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cellWidth, 0, cellWidth*n, cellHeight * 4 );
+  ctx.restore();
+  
   
   // draw text
   
@@ -81,13 +85,20 @@ function App(props) {
   const [lowerShowIdx, setLowerShowIdx] = useState(1);
 
   const [ifReordering, setIfReordering] = useState(false);
+  const [directedGraph, setDirectedGraph] = useState(false);
+  const [reorderMetric, setReorderMetric] = useState(0);
 
   const handleSortIdxChange = (event) => setSortIdx(event.target.value);
   const handleUpperChange = (event) => setUpperShowIdx(event.target.value);
   const handleLowerChange = (event) => setLowerShowIdx(event.target.value);
 
-  const handleReorderClick = (event) => setIfReordering(!ifReordering);
-
+  const handleReorderClick = () => setIfReordering(!ifReordering);
+  const handleReoderMetricChange = event =>  setReorderMetric(event.target.value);
+  const handleDirectedClick = () => {
+    if (!directedGraph && (reorderMetric === 3)){
+      setReorderMetric(0);
+    }
+    setDirectedGraph(!directedGraph);}
 
   // use canvas stroke color from d3 color scale
   
@@ -100,7 +111,7 @@ function App(props) {
   // make matrix cells using html canvas
 
   
-  const silhouette = require("./example/silhouette.json")
+  const silhouette = require("./proj/silhouette.json")
   let silhouette_map = silhouette.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
 
   const cellWidth = Math.floor(width / (n+1));
@@ -134,7 +145,7 @@ function App(props) {
       for (let i = 0; i < n; i++) { // i 행
         for (let j = i+1; j < n; j++) { // j 열
           let value = upper_show[silhouette_idx[i]][silhouette_idx[j]];
-          drawMetric((j+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
+          drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
         }
       }
       
@@ -149,9 +160,9 @@ function App(props) {
         ctx.lineWidth = 1;
         for (let i = 0 ; i < n ; i++){
         let value = upper_show[silhouette_idx[i]][silhouette_idx[i]];
-        drawMetric((i+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
+        drawMetric((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
         
-        ctx.strokeRect((i+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight);
+        ctx.strokeRect((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight);
       }
       ctx.restore();
 
@@ -166,11 +177,11 @@ function App(props) {
     for (let j = 0; j < n ; j++){ // j 열
       for (let i = j+1; i < n; i++){ // i 행
         let value = lower_show[silhouette_idx[i]][silhouette_idx[j]];
-        drawMetric((j+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight, value, lowerScale(value));
+        drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, lowerScale(value));
       }
     }
 
-    drawBaseLine(ctx, n, width, height, cellWidth, cellHeight, silhouette_idx);
+    
 
     let orders = ({graph, nodes, links}) => {
       const n = nodes.length;
@@ -247,9 +258,8 @@ function App(props) {
       
       let reorder_show = silhouette.map((val) => val.map(v => (upperShowIdx > 0)? v['classwise_silhouette'][upperShowIdx-1] : v['silhouette']))
       reorder_show.forEach((val, idx) => {val[idx] = 0})
-      // leaforderdist, barycenter
       
-      let reorder_graph = reorder.mat2graph(reorder_show, false);
+      let reorder_graph = reorder.mat2graph(reorder_show, directedGraph);
       let nodes = reorder_graph.nodes();
       let edges = reorder_graph.links();
 
@@ -257,24 +267,26 @@ function App(props) {
       const permutations = orders({graph: reorder_graph, nodes, edges})
       
     
-    let reordered_idx = reorder.optimal_leaf_order()(reorder_show);
-    let leafOrderDist_idx = permutations['leafOrderDist']()
-    let spectral_idx = permutations['spectral']()
-    let barycenter_idx = permutations['barycenter']()
-    let rcm_idx = permutations['rcm']()
-    reordered_idx = spectral_idx
-    drawBaseLine(ctx, n, width, height, cellWidth, cellHeight, reordered_idx)
+      let order_idx = [permutations['leafOrderDist'](), permutations['barycenter'](), permutations['rcm']()]
+      if (!directedGraph){
+        order_idx.push(permutations['spectral']())
+      }
+      let reordered_idx = order_idx[reorderMetric];
+      drawBaseLine(ctx, n, cellWidth, cellHeight, reordered_idx)
 
     for (let i = 0 ; i < n ; i++){
       for (let j = 0; j < n; j++){
         let value = upper_show[reordered_idx[i]][reordered_idx[j]];
-        drawMetric((j+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
+        drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
       }
       let value = upper_show[reordered_idx[i]][reordered_idx[i]];
-      drawMetric((i+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
+      drawMetric((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
       // ctx.lineWidth = 1.0;
-      ctx.strokeRect((i+1) * cellWidth, (i+1) * cellHeight, cellWidth, cellHeight);
+      ctx.strokeRect((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight);
     }
+  }
+  else {
+    drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx);
   }
 
   }, [sortIdx, upperShowIdx, lowerShowIdx, silhouette, silhouette_map, n, width, height, cellWidth, cellHeight]);
@@ -319,6 +331,7 @@ function App(props) {
               value={sortIdx}
               label="OrderBy"
               onChange={handleSortIdxChange}
+              disabled={ifReordering}
             >
               <MenuItem value={0}>whole</MenuItem>
               <MenuItem value={1}>class 1</MenuItem>
@@ -349,6 +362,7 @@ function App(props) {
               value={lowerShowIdx}
               label="UpperMatrixValue"
               onChange={handleLowerChange}
+              disabled={ifReordering}
             >
               <MenuItem value={0}>whole</MenuItem>
               <MenuItem value={1}>class 1</MenuItem>
@@ -359,7 +373,25 @@ function App(props) {
         </Box>
         <Divider />
         <Button sx={{mt: 2}} variant="outlined" onClick={handleReorderClick}>{ifReordering? 'back': 'Reordering'}</Button>
+        <FormControl fullWidth sx={{mt: 2}}>
+            <InputLabel id="demo-simple-select-label">reorder by</InputLabel>
+            <Select
+              labelId="demo-simple-select-label"
+              id="demo-simple-select"
+              value={reorderMetric}
+              label="reorderBy"
+              onChange={handleReoderMetricChange}
+              disabled={!ifReordering}
+            >
+              <MenuItem value={0}>leaforderdistance</MenuItem>
+              <MenuItem value={1}>barycenter</MenuItem>
+              <MenuItem value={2}>rcm</MenuItem>
+              <MenuItem value={3} disabled={directedGraph}>spectral</MenuItem>
+            </Select>
+          </FormControl>
+          <Button sx={{mt: 2}} variant="outlined" onClick={handleDirectedClick} disabled={!ifReordering}>{directedGraph? 'undirected': 'directed'}</Button>
 
+        
     </Drawer>
         <Box>
           <canvas
