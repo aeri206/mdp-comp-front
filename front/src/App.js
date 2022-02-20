@@ -8,8 +8,10 @@ import * as d3 from "d3";
 
 const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 
-const showText = true; // 글자 안볼려면 이거 false로 
+const showText = false; // 글자 안볼려면 이거 false로
 
+const metric = ['silhouette', 'trustworthiness', 'continuity'][2] // metric 선택
+console.log(metric)
 
 
 function drawBaseLine(ctx, n, cellWidth, cellHeight, idx){
@@ -64,9 +66,6 @@ function App(props) {
     ctx.fillStyle = `#${hex}`;
   
     
-    // ctx.fillStyle = colorScale(metric);
-    // ctx.fillRect(x, y, width/2, height/2);
-    
     ctx.fillRect(x, y, width, height);
     
     ctx.fillStyle = '#000';
@@ -117,8 +116,8 @@ function App(props) {
   // make matrix cells using html canvas
 
   
-  const silhouette = require("./proj/silhouette.json")
-  let silhouette_map = silhouette.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
+  const metric_result = require(`./proj/${metric}.json`)
+  let metric_result_map = metric_result.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
 
   const cellWidth = Math.floor(width / (n+1));
   const cellHeight = Math.floor(height / (n+1));
@@ -133,19 +132,23 @@ function App(props) {
       let ifAscending = false // ascending or descending
       
       
-      let upper_show = silhouette.map((val) => val.map(v => (upperShowIdx > 0)? v['classwise_silhouette'][upperShowIdx-1] : v['silhouette']))
-      const silhouette_idx = silhouette_map.sort((a, b) => ifAscending? a[0][sortIdx] - b[0][sortIdx] : b[0][sortIdx] - a[0][sortIdx]).map(v => v[1]); 
+      let upper_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metric}`][upperShowIdx-1] : v[metric]))
+      const silhouette_idx = metric_result_map.sort((a, b) => ifAscending? a[0][sortIdx] - b[0][sortIdx] : b[0][sortIdx] - a[0][sortIdx]).map(v => v[1]); 
       
       const upper_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => upper_show[curr][j]).flat()), [])
       
 
       
-      const upperMax = d3.max(upper_triangular) + d3.min(upper_triangular) > 0 ? d3.max(upper_triangular) : -d3.min(upper_triangular)
-      
-      
-      const upperScale = d3.scaleLinear()
+      let upperMax = d3.max(upper_triangular) + d3.min(upper_triangular) > 0 ? d3.max(upper_triangular) : -d3.min(upper_triangular)
+      let upperScale = d3.scaleLinear()
         .domain([-upperMax, upperMax])
         .range([0, 1]);
+
+      if (metric !== 'silhouette'){
+        upperScale = d3.scaleLinear()
+        .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
+        .range([0, 1]);
+      }
 
 
       for (let i = 0; i < n; i++) { // i 행
@@ -172,13 +175,19 @@ function App(props) {
       }
       ctx.restore();
 
-      let lower_show = silhouette.map((val) => val.map(v => (lowerShowIdx > 0)? v['classwise_silhouette'][lowerShowIdx-1] : v['silhouette']))
+      let lower_show = metric_result.map((val) => val.map(v => (lowerShowIdx > 0)? v[`classwise_${metric}`][lowerShowIdx-1] : v[metric]))
       let lower_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => lower_show[curr][j]).flat()), [])
       let lowerMax = d3.max(lower_triangular) + d3.min(lower_triangular) > 0 ? d3.max(lower_triangular) : -d3.min(lower_triangular)
       
-      const lowerScale = d3.scaleLinear()
+      let lowerScale = d3.scaleLinear()
         .domain([-lowerMax, lowerMax])
         .range([0, 1]);
+
+        if (metric !== 'silhouette'){
+          lowerScale = d3.scaleLinear()
+          .domain([d3.min(lower_triangular), d3.max(upper_triangular)])
+          .range([0, 1]);
+        }
 
     for (let j = 0; j < n ; j++){ // j 열
       for (let i = j+1; i < n; i++){ // i 행
@@ -262,8 +271,10 @@ function App(props) {
     
     if (ifReordering) {
       
-      let reorder_show = silhouette.map((val) => val.map(v => (upperShowIdx > 0)? v['classwise_silhouette'][upperShowIdx-1] : v['silhouette']))
-      reorder_show.forEach((val, idx) => {val[idx] = 0})
+      let reorder_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metric}`][upperShowIdx-1] : v[metric]))
+      if (metric === 'silhouette'){
+        reorder_show.forEach((val, idx) => {val[idx] = 0})
+      }
       
       let reorder_graph = reorder.mat2graph(reorder_show, directedGraph);
       let nodes = reorder_graph.nodes();
@@ -295,7 +306,7 @@ function App(props) {
     drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx);
   }
 
-  }, [sortIdx, upperShowIdx, lowerShowIdx, silhouette, silhouette_map, n, width, height, cellWidth, cellHeight]);
+  }, [sortIdx, upperShowIdx, lowerShowIdx, metric_result, metric_result_map, n, width, height, cellWidth, cellHeight]);
 
   const drawerWidth = 240;
 
