@@ -8,6 +8,8 @@ import * as d3 from "d3";
 
 const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 
+const showText = true; // 글자 안볼려면 이거 false로 
+
 
 
 function drawBaseLine(ctx, n, cellWidth, cellHeight, idx){
@@ -51,6 +53,7 @@ function App(props) {
     // draw canvas rectangle without filling
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    ctx.lineWidth = 0.1;
     ctx.strokeRect(x, y, width, height);
     // draw text
     // ctx.fillRect(x+width/2, y+height/2, width/2, height/2);
@@ -67,11 +70,14 @@ function App(props) {
     ctx.fillRect(x, y, width, height);
     
     ctx.fillStyle = '#000';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'hanging';
     // round up number
-    // ctx.fillText(Math.round(value* 1000) / 1000, x, y, width);
+    if (showText){ctx.fillText(Math.round(value* 1000) / 1000, x, y, width);
+
+    }
+    
     // ctx.fillText(Math.round(scalevalue* 1000) / 1000, x, y+12, width);
   
   }
@@ -402,13 +408,6 @@ function App(props) {
     </div>
   );
 }
-
-
-  
-
-
-  
-  
 
 
 export default App;
