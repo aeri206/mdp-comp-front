@@ -6,27 +6,31 @@ import { MenuItem, FormControl, Select, InputLabel } from '@mui/material';
 import * as d3 from "d3";
 
 
+
 const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 
 const showText = false; // 글자 안볼려면 이거 false로
 
-const metric = ['silhouette', 'trustworthiness', 'continuity'][2] // metric 선택
-console.log(metric)
 
+const file_dir = './projections/' + ['example', 'iris300umaphp', 'iris300umapss'][2]
 
-function drawBaseLine(ctx, n, cellWidth, cellHeight, idx){
-  // draw canvas rectangle without filling
+function drawBaseLine(ctx, n, cellWidth, cellHeight, idx, len_metadata){
+  // draw canvas rectangle without fillingtrustworthiness
   
   ctx.font = 'bold 12px sans-serif';
   ctx.lineWidth = 0.1;
   ctx.save();
+
   
   for (let i = 1; i <= n; i++){
     
     const colors = ['red', 'blue', 'green', 'orange']
     const file_idx = idx[i-1];
     // ctx.fillText(file_idx, i * cellWidth, cellHeight/2);
-    const weight_info = require(`./proj/${file_idx}/metadata.json`).attr_weight
+    // const metadata = require(`${file_dir}/${file_idx}/metadata.json`);
+    const weight_info = [1] *
+    
+    // 수정
     ctx.clearRect(i * cellWidth, 0, cellWidth, weight_info.length * cellHeight);
     
     
@@ -40,7 +44,7 @@ function drawBaseLine(ctx, n, cellWidth, cellHeight, idx){
     // ctx.fillStyle = 'black';
   }
   ctx.lineWidth = 1;
-  ctx.strokeRect(cellWidth, 0, cellWidth*n, cellHeight * 4 );
+  ctx.strokeRect(cellWidth, 0, cellWidth*n, cellHeight * len_metadata );
   ctx.restore();
   
   
@@ -62,7 +66,7 @@ function App(props) {
   
     const rgb = colorScale(scalevalue.toString());
   
-    const hex = rgb.match(/\d+/g).map(v => {let hex = parseInt(v).toString(16); return hex.length == 1? "0"+hex:hex}).join('');
+    const hex = rgb.match(/\d+/g).map(v => {let hex = parseInt(v).toString(16); return hex.length === 1? "0"+hex:hex}).join('');
     ctx.fillStyle = `#${hex}`;
   
     
@@ -73,17 +77,21 @@ function App(props) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'hanging';
     // round up number
-    if (showText){ctx.fillText(Math.round(value* 1000) / 1000, x, y, width);
+    if (showText){
+      ctx.fillText(Math.round(value* 1000) / 1000, x, y, width);
+      ctx.fillText(Math.round(scalevalue* 1000) / 1000, x, y+12, width);
 
     }
     
-    // ctx.fillText(Math.round(scalevalue* 1000) / 1000, x, y+12, width);
+    // 
   
   }
 
   const reorder = require('reorder.js')
 
   const canvasRef = useRef(null);
+
+  const [metricType, setMetricType] = useState('trustworthiness');
 
   const [sortIdx, setSortIdx] = useState(0);
   const [upperShowIdx, setUpperShowIdx] = useState(1);
@@ -92,6 +100,8 @@ function App(props) {
   const [ifReordering, setIfReordering] = useState(false);
   const [directedGraph, setDirectedGraph] = useState(false);
   const [reorderMetric, setReorderMetric] = useState(0);
+
+  const handleMetricTypeChange = event => setMetricType(event.target.value);
 
   const handleSortIdxChange = (event) => setSortIdx(event.target.value);
   const handleUpperChange = (event) => setUpperShowIdx(event.target.value);
@@ -116,8 +126,16 @@ function App(props) {
   // make matrix cells using html canvas
 
   
-  const metric_result = require(`./proj/${metric}.json`)
+  const metric_result = require(`${file_dir}/${metricType}.json`)
+  console.log('require')
+  
   let metric_result_map = metric_result.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
+
+  const metadata_sample = require(`${file_dir}/0/metadata.json`);
+  const metadata_type = Object.keys(metadata_sample)[0] // hyperparameter or weight_info
+  const metadata_value = metadata_sample[metadata_type] // sample type
+  const len_metadata = Object.keys(metadata_value).length
+  console.log(metadata_sample, len_metadata)
 
   const cellWidth = Math.floor(width / (n+1));
   const cellHeight = Math.floor(height / (n+1));
@@ -132,10 +150,10 @@ function App(props) {
       let ifAscending = false // ascending or descending
       
       
-      let upper_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metric}`][upperShowIdx-1] : v[metric]))
+      let upper_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metricType}`][upperShowIdx-1] : v[metricType]))
       const silhouette_idx = metric_result_map.sort((a, b) => ifAscending? a[0][sortIdx] - b[0][sortIdx] : b[0][sortIdx] - a[0][sortIdx]).map(v => v[1]); 
       
-      const upper_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => upper_show[curr][j]).flat()), [])
+      let upper_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => upper_show[curr][j]).flat()), [])
       
 
       
@@ -144,7 +162,7 @@ function App(props) {
         .domain([-upperMax, upperMax])
         .range([0, 1]);
 
-      if (metric !== 'silhouette'){
+      if (metricType !== 'silhouette'){
         upperScale = d3.scaleLinear()
         .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
         .range([0, 1]);
@@ -154,7 +172,8 @@ function App(props) {
       for (let i = 0; i < n; i++) { // i 행
         for (let j = i+1; j < n; j++) { // j 열
           let value = upper_show[silhouette_idx[i]][silhouette_idx[j]];
-          drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
+          console.log(value, upperScale(value))
+          drawMetric((j+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
         }
       }
       
@@ -169,13 +188,13 @@ function App(props) {
         ctx.lineWidth = 1;
         for (let i = 0 ; i < n ; i++){
         let value = upper_show[silhouette_idx[i]][silhouette_idx[i]];
-        drawMetric((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
+        drawMetric((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
         
-        ctx.strokeRect((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight);
+        ctx.strokeRect((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight);
       }
       ctx.restore();
 
-      let lower_show = metric_result.map((val) => val.map(v => (lowerShowIdx > 0)? v[`classwise_${metric}`][lowerShowIdx-1] : v[metric]))
+      let lower_show = metric_result.map((val) => val.map(v => (lowerShowIdx > 0)? v[`classwise_${metricType}`][lowerShowIdx-1] : v[metricType]))
       let lower_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => lower_show[curr][j]).flat()), [])
       let lowerMax = d3.max(lower_triangular) + d3.min(lower_triangular) > 0 ? d3.max(lower_triangular) : -d3.min(lower_triangular)
       
@@ -183,7 +202,7 @@ function App(props) {
         .domain([-lowerMax, lowerMax])
         .range([0, 1]);
 
-        if (metric !== 'silhouette'){
+        if (metricType !== 'silhouette'){
           lowerScale = d3.scaleLinear()
           .domain([d3.min(lower_triangular), d3.max(upper_triangular)])
           .range([0, 1]);
@@ -192,13 +211,13 @@ function App(props) {
     for (let j = 0; j < n ; j++){ // j 열
       for (let i = j+1; i < n; i++){ // i 행
         let value = lower_show[silhouette_idx[i]][silhouette_idx[j]];
-        drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, lowerScale(value));
+        drawMetric((j+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, lowerScale(value));
       }
     }
 
     
 
-    let orders = ({graph, nodes, links}) => {
+    let orders = ({graph, nodes}) => {
       const n = nodes.length;
       const matrix = Array.from(nodes, (_, i) => d3.range(n).map(j => ({ x: j, y: i, z: 0 })));
       const index = nodes.map((d, i) => ("id" in d ? d.id : i));
@@ -271,17 +290,14 @@ function App(props) {
     
     if (ifReordering) {
       
-      let reorder_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metric}`][upperShowIdx-1] : v[metric]))
-      if (metric === 'silhouette'){
+      let reorder_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metricType}`][upperShowIdx-1] : v[metricType]))
+      if (metricType === 'silhouette'){
         reorder_show.forEach((val, idx) => {val[idx] = 0})
       }
       
       let reorder_graph = reorder.mat2graph(reorder_show, directedGraph);
       let nodes = reorder_graph.nodes();
-      let edges = reorder_graph.links();
-
-
-      const permutations = orders({graph: reorder_graph, nodes, edges})
+      const permutations = orders({graph: reorder_graph, nodes})
       
     
       let order_idx = [permutations['leafOrderDist'](), permutations['barycenter'](), permutations['rcm']()]
@@ -289,21 +305,36 @@ function App(props) {
         order_idx.push(permutations['spectral']())
       }
       let reordered_idx = order_idx[reorderMetric];
-      drawBaseLine(ctx, n, cellWidth, cellHeight, reordered_idx)
 
+      upper_triangular = reordered_idx.reduce((acc, curr, idx) => acc.concat(reordered_idx.slice(idx+1).map(j => reorder_show[curr][j]).flat()), [])
+      if (metricType === 'silhouette'){
+        upperMax = d3.max(upper_triangular) + d3.min(upper_triangular) > 0 ? d3.max(upper_triangular) : -d3.min(upper_triangular)
+        upperScale = d3.scaleLinear()
+        .domain([-upperMax, upperMax])
+        .range([0, 1]);
+      } else {
+        upperScale = d3.scaleLinear()
+        .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
+        .range([0, 1]);
+      }
+      console.log(upperScale)
+
+      console.log(d3.max(reorder_show.flat()), d3.min(reorder_show.flat()))
+
+      drawBaseLine(ctx, n, cellWidth, cellHeight, reordered_idx, len_metadata)
     for (let i = 0 ; i < n ; i++){
       for (let j = 0; j < n; j++){
-        let value = upper_show[reordered_idx[i]][reordered_idx[j]];
-        drawMetric((j+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
+        let value = reorder_show[reordered_idx[i]][reordered_idx[j]];
+        drawMetric((j+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
       }
-      let value = upper_show[reordered_idx[i]][reordered_idx[i]];
-      drawMetric((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
+      let value = reorder_show[reordered_idx[i]][reordered_idx[i]];
+      drawMetric((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, diagonalScale(value));
       // ctx.lineWidth = 1.0;
-      ctx.strokeRect((i+1) * cellWidth, (i+4) * cellHeight, cellWidth, cellHeight);
+      ctx.strokeRect((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight);
     }
   }
   else {
-    drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx);
+    drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx, len_metadata);
   }
 
   }, [sortIdx, upperShowIdx, lowerShowIdx, metric_result, metric_result_map, n, width, height, cellWidth, cellHeight]);
@@ -338,9 +369,23 @@ function App(props) {
         anchor="left"
       >
         <Toolbar />
-        <Divider />
         <Box sx={{ minWidth: 80 }}>
-          <FormControl fullWidth>
+          <FormControl fullWidth sx={{mt: 2}}>
+              <InputLabel id="demo-simple-select-label">metric type</InputLabel>
+              <Select
+                labelId="demo-simple-select-label"
+                id="demo-simple-select"
+                value={metricType}
+                label="MetricType"
+                onChange={handleMetricTypeChange}
+              >
+                <MenuItem value={'silhouette'}>silhouette</MenuItem>
+                <MenuItem value={'trustworthiness'}>trustworthiness</MenuItem>
+                <MenuItem value={'continuity'}>continuity</MenuItem>
+              </Select>
+            </FormControl>
+          <Divider />
+          <FormControl fullWidth sx={{mt: 2}}>
             <InputLabel id="demo-simple-select-label">order by</InputLabel>
             <Select
               labelId="demo-simple-select-label"
