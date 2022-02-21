@@ -12,7 +12,7 @@ const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 const showText = false; // 글자 안볼려면 이거 false로
 
 
-const file_dir = './projections/' + ['example', 'iris100umaphp', 'iris200umaphp', 'iris200umapss'][2]
+const file_dir = './projections/' + ['example', 'iris100umaphp', 'iris200umaphp', 'iris200umapss'][3]
 
 function drawBaseLine(ctx, n, cellWidth, cellHeight, idx, len_metadata, type, metadata){
   // draw canvas rectangle without fillingtrustworthiness
@@ -59,23 +59,19 @@ function drawBaseLine(ctx, n, cellWidth, cellHeight, idx, len_metadata, type, me
         ctx.fillRect(i * cellWidth, cellHeight * idx, cellWidth, cellHeight);
       })
       ctx.globalAlpha = 1.0;
-  
       // ctx.fillStyle = 'black';
     }
-
   }
   
   ctx.lineWidth = 1;
   ctx.strokeRect(cellWidth, 0, cellWidth*n, cellHeight * len_metadata );
   ctx.restore();
-  
-  
-  // draw text
-  
 }
 
-function App(props) {
+const reorder = require('reorder.js');
 
+function App(props) {
+  console.log('App.js')
 
   function drawMetric (x, y, width, height, value, scalevalue){
     // draw canvas rectangle without filling
@@ -83,6 +79,7 @@ function App(props) {
     const ctx = canvas.getContext('2d');
     ctx.lineWidth = 0.1;
     ctx.strokeRect(x, y, width, height);
+    ctx.clearRect(x, y, width, height);
     // draw text
     // ctx.fillRect(x+width/2, y+height/2, width/2, height/2);
   
@@ -105,9 +102,9 @@ function App(props) {
     }
   }
 
-  const reorder = require('reorder.js')
 
   const canvasRef = useRef(null);
+  const orderIdxRef = useRef([]);
 
   const [metricType, setMetricType] = useState('trustworthiness');
 
@@ -133,6 +130,12 @@ function App(props) {
     }
     setDirectedGraph(!directedGraph);}
 
+    const [mappingMetric, setMappingMetric] = useState('trustworthiness');
+    const [mappingRange, setMappingRange] = useState(0); // whole
+
+    const handleMappingMetricChange = event => setMappingMetric(event.target.value);
+    const handleMappingRangeChange = event => setMappingRange(event.target.value);
+
   // use canvas stroke color from d3 color scale
   
 
@@ -147,15 +150,10 @@ function App(props) {
   const n = metric_result.length;
   
   let metric_result_map = metric_result.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
-
   const metadata_sample = require(`${file_dir}/0/metadata.json`);
   const metadata_type = Object.keys(metadata_sample)[0] // hyperparameter or weight_info
-  console.log(metadata_type)
   const metadata_value = metadata_sample[metadata_type] // sample type
-  const len_metadata = Object.keys(metadata_value).length
-  console.log(metadata_sample, len_metadata)
-
-
+  const len_metadata = Object.keys(metadata_value).length;
 
   let metadata_range = metadata_type === 'attr_weight'? ({value: Array.from({length: n}, (v, i) => {
     let metadata = require(`${file_dir}/${i}/metadata.json`);
@@ -172,9 +170,6 @@ if (metadata_type === 'hyperparameter'){
     metadata_range.range[k] = [d3.min(arr), d3.max(arr)];
   })
 }
-
-  
-
   const cellWidth = Math.floor(width / (n+1));
   const cellHeight = Math.floor(height / (n+1));
   
@@ -190,6 +185,7 @@ if (metadata_type === 'hyperparameter'){
       
       let upper_show = metric_result.map((val) => val.map(v => (upperShowIdx > 0)? v[`classwise_${metricType}`][upperShowIdx-1] : v[metricType]))
       const silhouette_idx = metric_result_map.sort((a, b) => ifAscending? a[0][sortIdx] - b[0][sortIdx] : b[0][sortIdx] - a[0][sortIdx]).map(v => v[1]); 
+      orderIdxRef.current = silhouette_idx;
       
       let upper_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => upper_show[curr][j]).flat()), [])
       
@@ -330,7 +326,6 @@ if (metadata_type === 'hyperparameter'){
       if (metricType === 'silhouette'){
         reorder_show.forEach((val, idx) => {val[idx] = 0})
       }
-      console.log(d3.min(reorder_show.flat()))
       
       let reorder_graph = reorder.mat2graph(reorder_show, directedGraph);
       let nodes = reorder_graph.nodes();
@@ -342,6 +337,7 @@ if (metadata_type === 'hyperparameter'){
         order_idx.push(permutations['spectral']())
       }
       let reordered_idx = order_idx[reorderMetric];
+      orderIdxRef.current = reordered_idx;
 
       if (metricType === 'silhouette'){
         upper_triangular = reordered_idx.reduce((acc, curr, idx) => acc.concat(reordered_idx.slice(idx+1).map(j => reorder_show[curr][j]).flat()), [])
@@ -374,7 +370,39 @@ if (metadata_type === 'hyperparameter'){
   }, [sortIdx, upperShowIdx, lowerShowIdx, metric_result, metric_result_map, n, width, height, cellWidth, cellHeight]);
 
   const drawerWidth = 240;
+  useEffect(() => {
+    // console.log(reorder_show, reordered_idx);
+    console.log(orderIdxRef.current);
+    let type = mappingMetric ==='axis'? metricType : mappingMetric;
+    const metric_result = require(`${file_dir}/${type}.json`);
+    let show = metric_result.map(val => val.map(v => (mappingRange > 0)? v[`classwise_${mappingMetric}`][mappingRange-1] : v[mappingMetric]));
+    // console.log(show);
+    let scalar = d3.scaleLinear()
+      .domain([d3.quantile(show.flat(), 0.05), d3.quantile(show.flat(), 0.95)])
+      .range([0, 1]);
 
+    let diagonal_range = show.reduce((acc, curr, idx) => acc.concat(curr[idx]), [])
+    console.log(diagonal_range);
+    const diagonal_scale = d3.scaleLinear()
+      .domain([d3.min(diagonal_range), d3.max(diagonal_range)])
+      .range([0, 1]);
+
+      
+    canvasRef.current.getContext('2d').lineWidth = 1.0;
+    
+    for (let i = 0;i < n ; i++){
+      for (let j = 0 ; j < n ; j++){
+        let value = show[orderIdxRef.current[i]][orderIdxRef.current[j]];
+        // console.log(value, scalar(value));
+        drawMetric((j+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, scalar(value));
+      }
+      let diagonal_value = show[orderIdxRef.current[i]][orderIdxRef.current[i]];
+      drawMetric((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, diagonal_value, diagonal_scale(diagonal_value));
+      
+      canvasRef.current.getContext('2d').strokeRect((i+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight);
+    };
+
+  }, [mappingMetric, mappingRange]);
   
   return (
     <div className="App">
@@ -486,8 +514,38 @@ if (metadata_type === 'hyperparameter'){
             </Select>
           </FormControl>
           <Button sx={{mt: 2}} variant="outlined" onClick={handleDirectedClick} disabled={!ifReordering}>{directedGraph? 'undirected': 'directed'}</Button>
+        <Divider />
+        <FormControl fullWidth sx={{mt: 2}}>
+            <InputLabel id="demo-simple-select-label">mapped metric</InputLabel>
+            <Select
+              labelId="demo-simple-select-label"
+              id="demo-simple-select"
+              value={mappingMetric}
+              label="mapping metric"
+              onChange={handleMappingMetricChange}
+            >
+                <MenuItem value={'axis'}>axis</MenuItem>
+                <MenuItem value={'silhouette'}>silhouette</MenuItem>
+                <MenuItem value={'trustworthiness'}>trustworthiness</MenuItem>
+                <MenuItem value={'continuity'}>continuity</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth sx={{mt: 2}}>
+            <InputLabel id="demo-simple-select-label">mapped range</InputLabel>
+            <Select
+              labelId="demo-simple-select-label"
+              id="demo-simple-select"
+              value={mappingRange}
+              label="mapping range"
+              onChange={handleMappingRangeChange}
+            >
+              <MenuItem value={0}>whole</MenuItem>
+              <MenuItem value={1}>class 1</MenuItem>
+              <MenuItem value={2}>class 2</MenuItem>
+              <MenuItem value={3}>class 3</MenuItem>
+            </Select>
+          </FormControl>
 
-        
     </Drawer>
         <Box>
           <canvas
