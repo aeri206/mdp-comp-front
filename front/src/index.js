@@ -6,13 +6,12 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 
 
-const matrixWidth = 2000;
+const matrixWidth = 3000;
 
 ReactDOM.render(
   <React.StrictMode>
     {/* <CanvasTest /> */}
     <App
-      n={300}
       width={matrixWidth}
       height={matrixWidth}
     />

@@ -12,37 +12,59 @@ const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 const showText = false; // 글자 안볼려면 이거 false로
 
 
-const file_dir = './projections/' + ['example', 'iris300umaphp', 'iris300umapss'][2]
+const file_dir = './projections/' + ['example', 'iris100umaphp', 'iris200umaphp', 'iris200umapss'][2]
 
-function drawBaseLine(ctx, n, cellWidth, cellHeight, idx, len_metadata){
+function drawBaseLine(ctx, n, cellWidth, cellHeight, idx, len_metadata, type, metadata){
   // draw canvas rectangle without fillingtrustworthiness
   
   ctx.font = 'bold 12px sans-serif';
   ctx.lineWidth = 0.1;
   ctx.save();
+  const colors = ['red', 'blue', 'green', 'orange'];
 
+  if (type === 'hyperparameter'){
+    let hps = Object.entries(metadata.range)
+    const scalar = {};
+    hps.forEach(hp => {
+      scalar[hp[0]] = d3.scaleLinear()
+      .domain(hp[1]).range([0, 1])
+    });
+    hps = hps.map(h => h[0])
+    
+    for (let i = 1; i <= n; i++){
+      const file_idx = idx[i-1];
+      const hp = metadata.value[file_idx];
+      ctx.clearRect(i * cellWidth, 0, cellWidth, len_metadata * cellHeight);
+      hps.forEach((hp_name, idx) => {
+        const hp_value = hp[hp_name];
+        ctx.fillStyle = colors[idx];
+        ctx.globalAlpha = scalar[hp_name](hp_value);
+        ctx.fillRect(i * cellWidth, cellHeight * idx, cellWidth, cellHeight);
+      })
+      ctx.globalAlpha = 1;      
+    }
+
+
+  } else if (type === 'attr_weight'){
+    for (let i = 1; i <= n; i++){
+      const file_idx = idx[i-1];
+      // ctx.fillText(file_idx, i * cellWidth, cellHeight/2);
+      const weight_info = metadata.value[file_idx];
+      
+      // 수정
+      ctx.clearRect(i * cellWidth, 0, cellWidth, len_metadata * cellHeight);
+      weight_info.forEach((v, idx) => {
+        ctx.globalAlpha = v;
+        ctx.fillStyle = colors[idx]
+        ctx.fillRect(i * cellWidth, cellHeight * idx, cellWidth, cellHeight);
+      })
+      ctx.globalAlpha = 1.0;
   
-  for (let i = 1; i <= n; i++){
-    
-    const colors = ['red', 'blue', 'green', 'orange']
-    const file_idx = idx[i-1];
-    // ctx.fillText(file_idx, i * cellWidth, cellHeight/2);
-    // const metadata = require(`${file_dir}/${file_idx}/metadata.json`);
-    const weight_info = [1] *
-    
-    // 수정
-    ctx.clearRect(i * cellWidth, 0, cellWidth, weight_info.length * cellHeight);
-    
-    
-    weight_info.forEach((v, idx) => {
-      ctx.globalAlpha = v;
-      ctx.fillStyle = colors[idx]
-      ctx.fillRect(i * cellWidth, cellHeight * idx, cellWidth, cellHeight);
-    })
-    ctx.globalAlpha = 1.0;
+      // ctx.fillStyle = 'black';
+    }
 
-    // ctx.fillStyle = 'black';
   }
+  
   ctx.lineWidth = 1;
   ctx.strokeRect(cellWidth, 0, cellWidth*n, cellHeight * len_metadata );
   ctx.restore();
@@ -73,18 +95,14 @@ function App(props) {
     ctx.fillRect(x, y, width, height);
     
     ctx.fillStyle = '#000';
-    ctx.font = 'bold 10px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'hanging';
     // round up number
     if (showText){
       ctx.fillText(Math.round(value* 1000) / 1000, x, y, width);
       ctx.fillText(Math.round(scalevalue* 1000) / 1000, x, y+12, width);
-
     }
-    
-    // 
-  
   }
 
   const reorder = require('reorder.js')
@@ -122,20 +140,40 @@ function App(props) {
     // var permuted_mat = reorder.stablepermute(mat, perm);
     // console.log(perm, permuted_mat)
 
-  const { n, width, height } = props;
+  const { width, height } = props; // props
   // make matrix cells using html canvas
-
   
   const metric_result = require(`${file_dir}/${metricType}.json`)
-  console.log('require')
+  const n = metric_result.length;
   
   let metric_result_map = metric_result.map((val, idx) => Object.values(val[idx]).flat()).map((v, i) => [v, i]);
 
   const metadata_sample = require(`${file_dir}/0/metadata.json`);
   const metadata_type = Object.keys(metadata_sample)[0] // hyperparameter or weight_info
+  console.log(metadata_type)
   const metadata_value = metadata_sample[metadata_type] // sample type
   const len_metadata = Object.keys(metadata_value).length
   console.log(metadata_sample, len_metadata)
+
+
+
+  let metadata_range = metadata_type === 'attr_weight'? ({value: Array.from({length: n}, (v, i) => {
+    let metadata = require(`${file_dir}/${i}/metadata.json`);
+    return metadata.attr_weight
+  }), range: Array.from({length: len_metadata}, () => [0, 1])
+}): ({value: Array.from({length: n}, (v, i) => {
+  let metadata = require(`${file_dir}/${i}/metadata.json`);
+  return metadata.hyperparameter
+}), range: {}});
+
+if (metadata_type === 'hyperparameter'){
+  Object.keys(metadata_value).forEach(k => {
+    let arr = metadata_range.value.map(v => v[k])
+    metadata_range.range[k] = [d3.min(arr), d3.max(arr)];
+  })
+}
+
+  
 
   const cellWidth = Math.floor(width / (n+1));
   const cellHeight = Math.floor(height / (n+1));
@@ -155,8 +193,6 @@ function App(props) {
       
       let upper_triangular = silhouette_idx.reduce((acc, curr, idx) => acc.concat(silhouette_idx.slice(idx+1).map(j => upper_show[curr][j]).flat()), [])
       
-
-      
       let upperMax = d3.max(upper_triangular) + d3.min(upper_triangular) > 0 ? d3.max(upper_triangular) : -d3.min(upper_triangular)
       let upperScale = d3.scaleLinear()
         .domain([-upperMax, upperMax])
@@ -164,7 +200,8 @@ function App(props) {
 
       if (metricType !== 'silhouette'){
         upperScale = d3.scaleLinear()
-        .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
+        .domain([d3.quantile(upper_triangular, 0.05), d3.quantile(upper_triangular, 0.95)])
+        // .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
         .range([0, 1]);
       }
 
@@ -172,7 +209,6 @@ function App(props) {
       for (let i = 0; i < n; i++) { // i 행
         for (let j = i+1; j < n; j++) { // j 열
           let value = upper_show[silhouette_idx[i]][silhouette_idx[j]];
-          console.log(value, upperScale(value))
           drawMetric((j+1) * cellWidth, (i+len_metadata) * cellHeight, cellWidth, cellHeight, value, upperScale(value));
         }
       }
@@ -294,6 +330,7 @@ function App(props) {
       if (metricType === 'silhouette'){
         reorder_show.forEach((val, idx) => {val[idx] = 0})
       }
+      console.log(d3.min(reorder_show.flat()))
       
       let reorder_graph = reorder.mat2graph(reorder_show, directedGraph);
       let nodes = reorder_graph.nodes();
@@ -306,22 +343,19 @@ function App(props) {
       }
       let reordered_idx = order_idx[reorderMetric];
 
-      upper_triangular = reordered_idx.reduce((acc, curr, idx) => acc.concat(reordered_idx.slice(idx+1).map(j => reorder_show[curr][j]).flat()), [])
       if (metricType === 'silhouette'){
+        upper_triangular = reordered_idx.reduce((acc, curr, idx) => acc.concat(reordered_idx.slice(idx+1).map(j => reorder_show[curr][j]).flat()), [])
         upperMax = d3.max(upper_triangular) + d3.min(upper_triangular) > 0 ? d3.max(upper_triangular) : -d3.min(upper_triangular)
         upperScale = d3.scaleLinear()
         .domain([-upperMax, upperMax])
         .range([0, 1]);
       } else {
         upperScale = d3.scaleLinear()
-        .domain([d3.min(upper_triangular), d3.max(upper_triangular)])
+        .domain([d3.quantile(reorder_show.flat(), 0.05), d3.quantile(reorder_show.flat(), 0.95)])
         .range([0, 1]);
       }
-      console.log(upperScale)
 
-      console.log(d3.max(reorder_show.flat()), d3.min(reorder_show.flat()))
-
-      drawBaseLine(ctx, n, cellWidth, cellHeight, reordered_idx, len_metadata)
+      drawBaseLine(ctx, n, cellWidth, cellHeight, reordered_idx, len_metadata, metadata_type, metadata_range)
     for (let i = 0 ; i < n ; i++){
       for (let j = 0; j < n; j++){
         let value = reorder_show[reordered_idx[i]][reordered_idx[j]];
@@ -334,7 +368,7 @@ function App(props) {
     }
   }
   else {
-    drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx, len_metadata);
+    drawBaseLine(ctx, n, cellWidth, cellHeight, silhouette_idx, len_metadata, metadata_type, metadata_range);
   }
 
   }, [sortIdx, upperShowIdx, lowerShowIdx, metric_result, metric_result_map, n, width, height, cellWidth, cellHeight]);
