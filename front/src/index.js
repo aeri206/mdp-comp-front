@@ -6,7 +6,7 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 
 
-const matrixWidth = 3000;
+const matrixWidth = 1800;
 
 ReactDOM.render(
   <React.StrictMode>
