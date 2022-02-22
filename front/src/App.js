@@ -60,7 +60,6 @@ function drawBaseLine(canvas, n, cellWidth, cellHeight, orderIdx, metaData){
 }
 
 function drawMetric(canvas, n, cellWidth, cellHeight, orderIdx, showValue, metaDataLen, percentage){
-  console.log('drawMetric')
   /* 
   1. range (diagonal, non-diagonal)
   2. drawing
@@ -311,7 +310,6 @@ function App(props) {
   }, [projections, sortClass, sortGlobal, sortKL, sortMetric, ifReorder, reorderDirectedGraph, reorderMethod]);
 
   useEffect(() => {
-    console.log(showMetric);
     showValueRef.current.all = require(`./projections/${projections}/${showMetric}.json`);
     // 보여질값 새로 가져옴
   }, [projections, showMetric]);
