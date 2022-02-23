@@ -94,6 +94,7 @@ function drawMetric(canvas, n, cellWidth, cellHeight, orderIdx, showValue, metaD
       const hex = rgb.match(/\d+/g).map(v => {let hex = parseInt(v).toString(16); return hex.length === 1? "0"+hex:hex}).join('');
       ctx.fillStyle = `#${hex}`;
       ctx.fillRect((i+1)* cellWidth, (i+metaDataLen) * cellHeight, cellWidth, cellHeight);
+      ctx.fillRect(n* cellWidth, (i+metaDataLen) * cellHeight, cellWidth * 10, cellHeight);
       ctx.strokeRect((i+1)* cellWidth, (i+metaDataLen) * cellHeight, cellWidth, cellHeight);
   };
   ctx.restore();
@@ -268,8 +269,8 @@ function App(props) {
     // load, update => set file length check
     sortValueRef.current.all = require(`./projections/${projections}/${sortMetric}.json`);
     n = sortValueRef.current.all.length;
-    cellWidth = Math.floor(width / (n+1));
-    cellHeight = Math.floor(height / (n+1));
+    cellWidth = Math.floor(width / (n+11));
+    cellHeight = Math.floor(height / (n+11));
     // metric 불러와서 처음부터 로드
   }, [height, projections, sortMetric, width]);
 
