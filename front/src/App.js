@@ -74,7 +74,7 @@ function drawMetric(canvas, n, cellWidth, cellHeight, orderIdx, showValue, metaD
   
   const diagonalRange = d3.scaleLinear()
     // .domain([d3.quantile(diagonalValue, 1-percentage), d3.quantile(diagonalValue, percentage)])
-    .domain(d3.extent(diagonalValue))
+    .domain([d3.quantile(diagonalValue, 1-percentage), d3.quantile(diagonalValue, percentage)])
     .range([0, 1]);
 
   const nonDiagonalRange = d3.scaleLinear()
