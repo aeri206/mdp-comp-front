@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import './App.css';
 
 import { AppBar, Toolbar, Divider, Drawer, Box, Typography, CssBaseline, FormGroup, FormControlLabel, Switch, colors, Slider } from '@mui/material';
-import { MenuItem, FormControl, Select, InputLabel } from '@mui/material';
+import { MenuItem, FormControl, Select, InputLabel, Button } from '@mui/material';
 import * as d3 from "d3";
 
 
@@ -15,6 +15,7 @@ const projections_folder = ['example', 'iris100umaphp', 'iris200umaphp', 'iris20
 
 const klValue = ['0.01', '0.03', '0.06', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0'];
 
+const hParams = ['n_neighbors', 'min_dist']
 
 function drawBaseLine(canvas, n, cellWidth, cellHeight, orderIdx, metaData){
   let ctx = canvas.getContext('2d');
@@ -258,6 +259,8 @@ function App(props) {
 
   const { width, height } = props; // props
   
+  const [sortHParam, setSortHParam] = useState('');
+  const handleSortHParmaChange = e => {setSortHParam(e.target.value)};
   
   const drawerWidth = 240;
 
@@ -274,6 +277,13 @@ function App(props) {
     // load => metadata check
     canvasRef.current.getContext('2d').clearRect(0, 0, width, height);
     metadataRef.current = loadMetaData('./projections/' + projections, n);
+    if (metadataRef.current.type === 'hyperparameter') {
+      setSortHParam(hParams[0]);
+    }
+    else {
+      setSortHParam('');
+    }
+    
   }, [projections]);
 
 
@@ -287,6 +297,12 @@ function App(props) {
         (sortClass > 0)? v[`classwise_${sortMetric}`][sortClass-1] : v[sortMetric]));
     }
   }, [projections, sortMetric, sortGlobal, sortClass, sortKL, ifReorder]);
+
+  useEffect(() => {
+    orderIdxRef.current =  metadataRef.current.value.map((val, idx) => val[sortHParam]).map((v, i) => [i, v])
+      .sort((a, b) => a[1] - b[1]).map(v => v[0]);
+    drawBaseLine(canvasRef.current, n, cellWidth, cellHeight, orderIdxRef.current, metadataRef.current);
+  }, [sortHParam]);
 
   useEffect(() => {
     // compute graph for reorder
@@ -303,12 +319,12 @@ function App(props) {
     orderIdxRef.current = sortValueRef.current.filter.map((val, idx) => val[idx]).map((v, i) => [i, v])
         .sort((a, b) => a[1] - b[1]).map(v => v[0]);
       }
-    // drawBaseLine(ctx, n, cellWidth, cellHeight, orderIdxRef.current,)
     let ctx = canvasRef.current.getContext('2d');
     ctx.clearRect(0, 0, ctx.width, ctx.height);
     drawBaseLine(canvasRef.current, n, cellWidth, cellHeight, orderIdxRef.current, metadataRef.current);
   }, [projections, sortClass, sortGlobal, sortKL, sortMetric, ifReorder, reorderDirectedGraph, reorderMethod]);
 
+  
   useEffect(() => {
     showValueRef.current.all = require(`./projections/${projections}/${showMetric}.json`);
     // 보여질값 새로 가져옴
@@ -328,7 +344,7 @@ function App(props) {
      // drawRect
      drawMetric(canvasRef.current, n, cellWidth, cellHeight, orderIdxRef.current, showValueRef.current.filter, metadataRef.current.cnt, percentage);
   }, [
-    projections, sortClass, sortGlobal, sortMetric, sortKL,
+    projections, sortClass, sortGlobal, sortMetric, sortKL, sortHParam,
     ifReorder, reorderDirectedGraph, reorderMethod,
     showMetric, showClass, showGlobal, showKL, percentage]);
 
@@ -575,7 +591,27 @@ function App(props) {
             valueLabelDisplay="on"
             />
            </Box>
-    </Drawer>
+           <Divider sx={{mt: 2, mb: 2}} />
+          <FormControl fullWidth sx={{ mt: 2, display: (!hParams.includes(sortHParam)? 'none': '')}} >
+             <InputLabel id="demo-simple-select-label">hyperparameter Sort</InputLabel>
+              <Select
+                labelId="demo-simple-select-label"
+                id="demo-simple-select"
+                value={sortHParam}
+                label="hParams"
+                onChange={handleSortHParmaChange}
+              >
+                {(
+                  hParams.map(hParam => (
+                    <MenuItem
+                      key={hParam}
+                      value={hParam}>
+                      {hParam}
+                    </MenuItem>))
+                  )}
+              </Select>
+            </FormControl>
+          </Drawer>
     <Box>
         <canvas
           ref={canvasRef}
