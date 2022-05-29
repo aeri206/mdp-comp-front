@@ -309,7 +309,6 @@ function App(props) {
     drawBaseLine(canvasRef.current, n, cellWidth, cellHeight, orderIdxRef.current, metadataRef.current);
   }, [sortHParam]);
 
-
   useEffect(() => {
     // compute graph for reorder
     if (ifReorder){
