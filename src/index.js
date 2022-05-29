@@ -5,9 +5,16 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+
+const matrixWidth = 1800;
+
 root.render(
   <React.StrictMode>
-    <App />
+    <App
+      width={matrixWidth}
+      height={matrixWidth}
+    />
   </React.StrictMode>
 );
 
