@@ -10,8 +10,7 @@ const colorScale = d3.scaleSequential(d3.interpolatePRGn);
 
 const showText = false; // 글자 안볼려면 이거 false로
 
-const projections_folder = ['example', 'iris100umaphp', 'iris200umaphp', 'iris200umapss'];
-// const projections_folder = ['example', 'iris100umaphp'];
+const projections_folder = ['iris200umaphp', 'iris200umapss']
 
 const klValue = ['0.01', '0.03', '0.06', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0'];
 
@@ -359,7 +358,7 @@ function App(props) {
         >
           <Toolbar>
             <Typography variant="h6" noWrap component="div">
-              Title
+              Matrix View for Projections 
             </Typography>
           </Toolbar>
         </AppBar>
