@@ -1,4 +1,4 @@
-# mdp-comp-front
+# mdp-matrix
 - matrix visualization for projections
 - reordering using [reorder.js](https://github.com/jdfekete/reorder.js/)
 - sort by hyperparameters
